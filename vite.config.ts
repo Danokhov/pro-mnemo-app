@@ -8,8 +8,9 @@ export default defineConfig({
     // Используем переменные окружения из Netlify
     'process.env.API_KEY': JSON.stringify(process.env.API_KEY || process.env.NETLIFY_API_KEY || ""),
     'import.meta.env.VITE_API_KEY': JSON.stringify(process.env.API_KEY || process.env.NETLIFY_API_KEY || ""),
-    // OpenAI TTS: явно прокидываем ключ (VITE_OPENAI_API_KEY или OPENAI_API_KEY при сборке)
-    'import.meta.env.VITE_OPENAI_API_KEY': JSON.stringify(process.env.VITE_OPENAI_API_KEY || process.env.OPENAI_API_KEY || "")
+    // OpenAI TTS: подставляем в бандл при сборке (Netlify: VITE_OPENAI_API_KEY или OPENAI_API_KEY)
+    'import.meta.env.VITE_OPENAI_API_KEY': JSON.stringify(process.env.VITE_OPENAI_API_KEY || process.env.OPENAI_API_KEY || ''),
+    'import.meta.env.OPENAI_API_KEY': JSON.stringify(process.env.OPENAI_API_KEY || '')
   },
   resolve: {
     alias: {
