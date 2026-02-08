@@ -2,6 +2,28 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 
+function showFatalError(title: string, message: string, detail?: string) {
+  const el = document.getElementById('root') || document.body;
+  el.innerHTML = [
+    '<div style="padding:24px;font-family:sans-serif;max-width:520px;margin:40px auto;background:#fef2f2;border:1px solid #fecaca;border-radius:8px">',
+    '<h2 style="color:#b91c1c;margin-top:0">' + title + '</h2>',
+    '<p style="color:#991b1b">' + message.replace(/</g, '&lt;') + '</p>',
+    detail ? '<pre style="font-size:12px;overflow:auto;white-space:pre-wrap">' + detail.replace(/</g, '&lt;') + '</pre>' : '',
+    '</div>'
+  ].join('');
+}
+
+window.onerror = function (msg, url, line, col, err) {
+  console.error('Uncaught error:', msg, url, line, col, err);
+  showFatalError('Ошибка загрузки', String(msg), err?.stack);
+  return false;
+};
+window.onunhandledrejection = function (e) {
+  console.error('Unhandled rejection:', e.reason);
+  const msg = e.reason?.message || e.reason?.toString?.() || String(e.reason);
+  showFatalError('Ошибка (unhandled)', msg, e.reason?.stack);
+};
+
 class ErrorBoundary extends React.Component<
   { children: React.ReactNode },
   { hasError: boolean; error: Error | null }
@@ -40,14 +62,21 @@ class ErrorBoundary extends React.Component<
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
+  document.body.innerHTML = '<div style="padding:24px;font-family:sans-serif">Не найден элемент #root</div>';
   throw new Error("Could not find root element to mount to");
 }
 
-const root = ReactDOM.createRoot(rootElement);
-root.render(
-  <React.StrictMode>
-    <ErrorBoundary>
-      <App />
-    </ErrorBoundary>
-  </React.StrictMode>
-);
+try {
+  const root = ReactDOM.createRoot(rootElement);
+  root.render(
+    <React.StrictMode>
+      <ErrorBoundary>
+        <App />
+      </ErrorBoundary>
+    </React.StrictMode>
+  );
+} catch (e) {
+  const err = e instanceof Error ? e : new Error(String(e));
+  showFatalError('Ошибка инициализации', err.message, err.stack);
+  throw e;
+}
