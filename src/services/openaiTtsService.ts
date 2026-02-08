@@ -117,55 +117,39 @@ async function saveToCache(text: string, lang: string, audioBlob: Blob): Promise
   }
 }
 
-// Воспроизведение аудио из Blob
+// Воспроизведение аудио из Blob (в Telegram WebView blob: URL иногда не играет — пробуем data URL)
 async function playAudioBlob(audioBlob: Blob): Promise<void> {
-  console.log('🔓 [Audio Playback] Unlocking audio...');
   await unlockAudio();
-  console.log('✅ [Audio Playback] Audio unlocked');
-  
-  const audioUrl = URL.createObjectURL(audioBlob);
-  console.log('🎵 [Audio Playback] Created object URL, creating Audio element...');
-  const audio = new Audio(audioUrl);
-  
-  return new Promise((resolve, reject) => {
-    audio.onloadedmetadata = () => {
-      console.log('✅ [Audio Playback] Audio metadata loaded, duration:', audio.duration, 'seconds');
-    };
-    
-    audio.oncanplay = () => {
-      console.log('✅ [Audio Playback] Audio can play');
-    };
-    
-    audio.onplay = () => {
-      console.log('▶️ [Audio Playback] Audio started playing');
-    };
-    
-    audio.onended = () => {
-      console.log('✅ [Audio Playback] Audio playback completed');
-      URL.revokeObjectURL(audioUrl);
-      resolve();
-    };
-    
-    audio.onerror = (error) => {
-      console.error('❌ [Audio Playback] Audio playback error:', error);
-      console.error('❌ [Audio Playback] Audio error details:', {
-        error: audio.error,
-        code: audio.error?.code,
-        message: audio.error?.message
-      });
-      URL.revokeObjectURL(audioUrl);
-      reject(new Error(`Audio playback failed: ${audio.error?.message || 'Unknown error'}`));
-    };
-    
-    console.log('▶️ [Audio Playback] Attempting to play audio...');
-    audio.play().then(() => {
-      console.log('✅ [Audio Playback] Play() promise resolved');
-    }).catch((playError) => {
-      console.error('❌ [Audio Playback] Play() promise rejected:', playError);
-      URL.revokeObjectURL(audioUrl);
-      reject(playError);
+
+  const tryPlay = (src: string, revoke?: () => void): Promise<void> =>
+    new Promise((resolve, reject) => {
+      const audio = new Audio(src);
+      const cleanup = () => { try { revoke?.(); } catch {} };
+
+      audio.onended = () => { cleanup(); resolve(); };
+      audio.onerror = () => {
+        cleanup();
+        reject(new Error(`Play failed: ${audio.error?.message || 'Unknown'}`));
+      };
+      audio.play().then(() => {}).catch((e) => { cleanup(); reject(e); });
     });
+
+  const blobUrl = URL.createObjectURL(audioBlob);
+  try {
+    await tryPlay(blobUrl, () => URL.revokeObjectURL(blobUrl));
+    return;
+  } catch {
+    URL.revokeObjectURL(blobUrl);
+  }
+
+  // Fallback: data URL (лучше работает в части WebView, в т.ч. Telegram)
+  const reader = new FileReader();
+  const dataUrl = await new Promise<string>((resolve, reject) => {
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(audioBlob);
   });
+  await tryPlay(dataUrl);
 }
 
 const TTS_PROXY_PATH = '/.netlify/functions/tts';
@@ -185,10 +169,14 @@ async function fetchViaProxy(text: string, lang: 'de' | 'ru'): Promise<Blob | nu
       console.warn('⚠️ [OpenAI TTS] Proxy error:', response.status, errBody?.slice(0, 200));
       return null;
     }
-    const blob = await response.blob();
+    let blob = await response.blob();
     if (!blob || blob.size === 0) {
       console.warn('⚠️ [OpenAI TTS] Proxy returned empty body');
       return null;
+    }
+    // В Telegram WebView blob без type может не воспроизводиться — задаём явно
+    if (!blob.type || blob.type === 'application/octet-stream') {
+      blob = new Blob([blob], { type: 'audio/mpeg' });
     }
     return blob;
   } catch (e) {
@@ -216,7 +204,11 @@ async function fetchDirect(text: string, lang: 'de' | 'ru', apiKey: string): Pro
     const errorText = await response.text();
     throw new Error(`OpenAI TTS failed: ${response.status} ${response.statusText} - ${errorText}`);
   }
-  return response.blob();
+  let blob = await response.blob();
+  if (!blob.type || blob.type === 'application/octet-stream') {
+    blob = new Blob([blob], { type: 'audio/mpeg' });
+  }
+  return blob;
 }
 
 const OPENAI_TTS_MAX_CHARS = 4096;
@@ -236,8 +228,12 @@ async function fetchOpenAITTS(text: string, lang: 'de' | 'ru'): Promise<Blob> {
 
   console.log('📡 [OpenAI TTS] Request...', { len: textToUse.length, preview: textToUse.substring(0, 40) + (textToUse.length > 40 ? '...' : ''), lang });
 
-  // 1) Пробуем прокси (Netlify Function) — один origin, нет CORS, ключ на сервере
-  const proxyBlob = await fetchViaProxy(textToUse, lang);
+  // 1) Пробуем прокси (Netlify Function) — один origin, нет CORS; один повтор при холодном старте
+  let proxyBlob = await fetchViaProxy(textToUse, lang);
+  if (!proxyBlob && typeof window !== 'undefined') {
+    await new Promise((r) => setTimeout(r, 800));
+    proxyBlob = await fetchViaProxy(textToUse, lang);
+  }
   if (proxyBlob && proxyBlob.size > 0) {
     console.log('✅ [OpenAI TTS] Via proxy (Netlify function):', (proxyBlob.size / 1024).toFixed(2), 'KB');
     return proxyBlob;
