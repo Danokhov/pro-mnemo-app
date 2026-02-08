@@ -49,15 +49,18 @@ const DialogModule: React.FC<DialogModuleProps> = ({ topic, onComplete }) => {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
+  const getAudioUrl = (url: string) => {
+    if (url.startsWith('http')) return url;
+    const path = url.startsWith('/') ? url : `/${url}`;
+    return typeof window !== 'undefined' ? `${window.location.origin}${path}` : path;
+  };
+
   const initAudio = async () => {
     await unlockAudio().catch(() => {});
 
     if (!audioRef.current) {
       setIsLoading(true);
-      // Используем путь к аудио файлу (MP3 в корне public)
-      const audioPath = topic.dialog.audioUrl.startsWith('/') 
-        ? topic.dialog.audioUrl 
-        : `/${topic.dialog.audioUrl}`;
+      const audioPath = getAudioUrl(topic.dialog.audioUrl);
       const audio = new Audio(audioPath);
       audioRef.current = audio;
 
@@ -77,7 +80,6 @@ const DialogModule: React.FC<DialogModuleProps> = ({ topic, onComplete }) => {
       audio.onerror = async (e) => { 
         setIsLoading(false); 
         setIsPlaying(false);
-        // Fallback на SpeechSynthesis если файл не найден
         try {
           setIsPlaying(true);
           setIsLoading(true);
@@ -108,15 +110,11 @@ const DialogModule: React.FC<DialogModuleProps> = ({ topic, onComplete }) => {
       await initAudio();
     }
     
-    // Пробуем воспроизвести файл
     if (audioRef.current) {
       try {
         await audioRef.current.play();
       } catch (err) {
-        // Если не удалось воспроизвести файл, используем fallback
-        const audioPath = topic.dialog.audioUrl.startsWith('/') 
-          ? topic.dialog.audioUrl 
-          : `/${topic.dialog.audioUrl}`;
+        const audioPath = getAudioUrl(topic.dialog.audioUrl);
         setIsPlaying(true);
         setIsLoading(true);
         try {
@@ -128,10 +126,7 @@ const DialogModule: React.FC<DialogModuleProps> = ({ topic, onComplete }) => {
         setIsLoading(false);
       }
     } else {
-      // Если не удалось инициализировать, используем только fallback
-      const audioPath = topic.dialog.audioUrl.startsWith('/') 
-        ? topic.dialog.audioUrl 
-        : `/${topic.dialog.audioUrl}`;
+      const audioPath = getAudioUrl(topic.dialog.audioUrl);
       setIsPlaying(true);
       setIsLoading(true);
       try {

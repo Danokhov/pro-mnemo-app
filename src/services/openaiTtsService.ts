@@ -170,7 +170,7 @@ async function playAudioBlob(audioBlob: Blob): Promise<void> {
 
 // Получение аудио от OpenAI
 async function fetchOpenAITTS(text: string, lang: 'de' | 'ru'): Promise<Blob> {
-  const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
+  const apiKey = (import.meta.env.VITE_OPENAI_API_KEY as string) || '';
   
   console.log('🔑 [OpenAI TTS] Checking API key...', {
     hasKey: !!apiKey,
@@ -179,7 +179,7 @@ async function fetchOpenAITTS(text: string, lang: 'de' | 'ru'): Promise<Blob> {
   });
   
   if (!apiKey) {
-    const errorMsg = 'OpenAI API key not found. Please set VITE_OPENAI_API_KEY in .env file or Netlify environment variables';
+    const errorMsg = 'OpenAI API key not found. Set VITE_OPENAI_API_KEY or OPENAI_API_KEY in Netlify / .env';
     console.error('❌ [OpenAI TTS]', errorMsg);
     throw new Error(errorMsg);
   }
