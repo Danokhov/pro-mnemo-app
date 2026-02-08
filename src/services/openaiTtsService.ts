@@ -168,65 +168,75 @@ async function playAudioBlob(audioBlob: Blob): Promise<void> {
   });
 }
 
-// Получение аудио от OpenAI
+const TTS_PROXY_PATH = '/.netlify/functions/tts';
+
+/** Запрос через Netlify Function (тот же origin — нет CORS/401 в Telegram) */
+async function fetchViaProxy(text: string, lang: 'de' | 'ru'): Promise<Blob | null> {
+  const url = typeof window !== 'undefined' ? `${window.location.origin}${TTS_PROXY_PATH}` : '';
+  if (!url) return null;
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, lang }),
+    });
+    if (!response.ok) return null;
+    return await response.blob();
+  } catch {
+    return null;
+  }
+}
+
+/** Прямой запрос к OpenAI (в браузере с того же origin может быть CORS при 401 в Telegram) */
+async function fetchDirect(text: string, lang: 'de' | 'ru', apiKey: string): Promise<Blob> {
+  const response = await fetch('https://api.openai.com/v1/audio/speech', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'tts-1-hd',
+      input: text,
+      voice: 'nova',
+      language: lang === 'de' ? 'de' : 'ru',
+    }),
+  });
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`OpenAI TTS failed: ${response.status} ${response.statusText} - ${errorText}`);
+  }
+  return response.blob();
+}
+
+// Получение аудио от OpenAI (сначала прокси, затем прямой вызов)
 async function fetchOpenAITTS(text: string, lang: 'de' | 'ru'): Promise<Blob> {
   const apiKey =
     (import.meta.env.VITE_OPENAI_API_KEY as string) ||
     (import.meta.env.OPENAI_API_KEY as string) ||
     '';
 
-  console.log('🔑 [OpenAI TTS] API key:', {
-    hasKey: !!apiKey,
-    keyLength: apiKey ? apiKey.length : 0,
-    keyPrefix: apiKey ? apiKey.substring(0, 7) + '...' : 'none'
-  });
+  console.log('📡 [OpenAI TTS] Request...', { text: text.substring(0, 40) + '...', lang });
 
+  // 1) Пробуем прокси (Netlify Function) — один origin, нет CORS, ключ на сервере
+  const proxyBlob = await fetchViaProxy(text, lang);
+  if (proxyBlob && proxyBlob.size > 0) {
+    console.log('✅ [OpenAI TTS] Via proxy (Netlify function):', (proxyBlob.size / 1024).toFixed(2), 'KB');
+    return proxyBlob;
+  }
+
+  // 2) Fallback: прямой вызов (работает в обычном браузере; в Telegram может дать CORS при 401)
   if (!apiKey) {
     const msg =
-      'OpenAI TTS: ключ не найден. В Netlify → Site configuration → Environment variables добавьте VITE_OPENAI_API_KEY (или OPENAI_API_KEY), затем Trigger deploy → Clear cache and deploy site.';
+      'OpenAI TTS: ключ не найден. В Netlify задайте OPENAI_API_KEY (для функции tts) или VITE_OPENAI_API_KEY, затем Clear cache and deploy.';
     console.error('❌ [OpenAI TTS]', msg);
     throw new Error(msg);
   }
 
-  console.log('📡 [OpenAI TTS] Sending request to OpenAI API...', {
-    text: text.substring(0, 50) + '...',
-    lang,
-    model: 'tts-1-hd',
-    voice: 'nova'
-  });
-
+  console.log('📡 [OpenAI TTS] Proxy unavailable, using direct API');
   try {
-    const response = await fetch('https://api.openai.com/v1/audio/speech', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'tts-1-hd', // Модель с лучшим качеством звука
-        input: text,
-        voice: 'nova', // Качественный голос (можно изменить на 'onyx' для мужского)
-        language: lang === 'de' ? 'de' : 'ru',
-      }),
-    });
-
-    console.log('📥 [OpenAI TTS] Response status:', response.status, response.statusText);
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('❌ [OpenAI TTS] API Error:', {
-        status: response.status,
-        statusText: response.statusText,
-        error: errorText
-      });
-      throw new Error(`OpenAI TTS failed: ${response.status} ${response.statusText} - ${errorText}`);
-    }
-
-    const blob = await response.blob();
-    console.log('✅ [OpenAI TTS] Audio blob received:', {
-      size: `${(blob.size / 1024).toFixed(2)} KB`,
-      type: blob.type
-    });
+    const blob = await fetchDirect(text, lang, apiKey);
+    console.log('✅ [OpenAI TTS] Direct API:', (blob.size / 1024).toFixed(2), 'KB');
     return blob;
   } catch (error) {
     console.error('❌ [OpenAI TTS] Fetch error:', error);
