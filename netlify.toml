@@ -1,5 +1,4 @@
 [build]
-  base = "pro-mnemo_-russian-german (1)"
   command = "npm install && npm run build"
   publish = "dist"
 
