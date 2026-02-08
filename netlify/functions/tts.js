@@ -1,20 +1,29 @@
 /**
  * Netlify serverless function: прокси для OpenAI TTS.
- * Ключ хранится на сервере — запрос из Telegram/браузера идёт с того же origin, без CORS/401.
+ * Ключ хранится на сервере — запрос из Telegram/браузера идёт без CORS/401.
  *
- * В Netlify → Environment variables задайте OPENAI_API_KEY.
+ * В Netlify → Environment variables задайте OPENAI_API_KEY (scope: Builds and Functions).
  */
 
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'Content-Type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+};
+
 exports.handler = async (event) => {
+  if (event.httpMethod === 'OPTIONS') {
+    return { statusCode: 204, headers: CORS_HEADERS, body: '' };
+  }
   if (event.httpMethod !== 'POST') {
-    return { statusCode: 405, body: 'Method Not Allowed' };
+    return { statusCode: 405, headers: CORS_HEADERS, body: 'Method Not Allowed' };
   }
 
   const apiKey = process.env.OPENAI_API_KEY || process.env.VITE_OPENAI_API_KEY;
   if (!apiKey) {
     return {
       statusCode: 500,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
       body: JSON.stringify({ error: 'OPENAI_API_KEY not set in Netlify' }),
     };
   }
@@ -25,7 +34,7 @@ exports.handler = async (event) => {
   } catch {
     return {
       statusCode: 400,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
       body: JSON.stringify({ error: 'Invalid JSON body' }),
     };
   }
@@ -34,7 +43,7 @@ exports.handler = async (event) => {
   if (!text || typeof text !== 'string') {
     return {
       statusCode: 400,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
       body: JSON.stringify({ error: 'Missing or invalid "text"' }),
     };
   }
@@ -58,7 +67,7 @@ exports.handler = async (event) => {
       const errText = await response.text();
       return {
         statusCode: response.status,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
         body: JSON.stringify({ error: errText || response.statusText }),
       };
     }
@@ -71,6 +80,7 @@ exports.handler = async (event) => {
     return {
       statusCode: 200,
       headers: {
+        ...CORS_HEADERS,
         'Content-Type': contentType,
         'Cache-Control': 'public, max-age=86400',
       },
@@ -80,7 +90,7 @@ exports.handler = async (event) => {
   } catch (err) {
     return {
       statusCode: 500,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
       body: JSON.stringify({ error: err.message || 'OpenAI request failed' }),
     };
   }

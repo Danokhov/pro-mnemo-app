@@ -172,17 +172,27 @@ const TTS_PROXY_PATH = '/.netlify/functions/tts';
 
 /** Запрос через Netlify Function (тот же origin — нет CORS/401 в Telegram) */
 async function fetchViaProxy(text: string, lang: 'de' | 'ru'): Promise<Blob | null> {
-  const url = typeof window !== 'undefined' ? `${window.location.origin}${TTS_PROXY_PATH}` : '';
-  if (!url) return null;
+  if (typeof window === 'undefined') return null;
   try {
-    const response = await fetch(url, {
+    // Относительный URL — в Telegram WebView всегда тот же хост, что и страница
+    const response = await fetch(TTS_PROXY_PATH, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text, lang }),
     });
-    if (!response.ok) return null;
-    return await response.blob();
-  } catch {
+    if (!response.ok) {
+      const errBody = await response.text();
+      console.warn('⚠️ [OpenAI TTS] Proxy error:', response.status, errBody?.slice(0, 200));
+      return null;
+    }
+    const blob = await response.blob();
+    if (!blob || blob.size === 0) {
+      console.warn('⚠️ [OpenAI TTS] Proxy returned empty body');
+      return null;
+    }
+    return blob;
+  } catch (e) {
+    console.warn('⚠️ [OpenAI TTS] Proxy fetch failed:', e instanceof Error ? e.message : e);
     return null;
   }
 }
