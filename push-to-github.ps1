@@ -40,12 +40,19 @@ if (-not (Test-Path ".git")) {
 
 git add -A
 git status
-git commit -m "Initial commit: pro-mnemo Russian-German app"
+$commitMsg = "Update: pro-mnemo Russian-German app"
+if (-not (git rev-parse -q --verify HEAD 2>$null)) { $commitMsg = "Initial commit: pro-mnemo Russian-German app" }
+git commit -m $commitMsg
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Nothing to commit (or commit failed)." -ForegroundColor Yellow
-} else {
-    git branch -M $branch
-    git push -u origin $branch
-    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-    Write-Host "Done. Pushed to $repoUrl" -ForegroundColor Green
 }
+git branch -M $branch
+# Подтянуть изменения с GitHub перед пушем (избегаем rejected push)
+Write-Host "Pulling from origin (rebase)..." -ForegroundColor Cyan
+git pull --rebase origin $branch 2>$null
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "Pull failed or no remote yet. Pushing..." -ForegroundColor Yellow
+}
+git push -u origin $branch
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+Write-Host "Done. Pushed to $repoUrl" -ForegroundColor Green
