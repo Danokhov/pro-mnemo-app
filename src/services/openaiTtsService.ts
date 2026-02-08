@@ -219,17 +219,25 @@ async function fetchDirect(text: string, lang: 'de' | 'ru', apiKey: string): Pro
   return response.blob();
 }
 
+const OPENAI_TTS_MAX_CHARS = 4096;
+
 // Получение аудио от OpenAI (сначала прокси, затем прямой вызов)
 async function fetchOpenAITTS(text: string, lang: 'de' | 'ru'): Promise<Blob> {
+  const raw = typeof text === 'string' ? text.trim() : '';
+  if (!raw) {
+    throw new Error('OpenAI TTS: пустой текст');
+  }
+  const textToUse = raw.length > OPENAI_TTS_MAX_CHARS ? raw.slice(0, OPENAI_TTS_MAX_CHARS) : raw;
+
   const apiKey =
     (import.meta.env.VITE_OPENAI_API_KEY as string) ||
     (import.meta.env.OPENAI_API_KEY as string) ||
     '';
 
-  console.log('📡 [OpenAI TTS] Request...', { text: text.substring(0, 40) + '...', lang });
+  console.log('📡 [OpenAI TTS] Request...', { len: textToUse.length, preview: textToUse.substring(0, 40) + (textToUse.length > 40 ? '...' : ''), lang });
 
   // 1) Пробуем прокси (Netlify Function) — один origin, нет CORS, ключ на сервере
-  const proxyBlob = await fetchViaProxy(text, lang);
+  const proxyBlob = await fetchViaProxy(textToUse, lang);
   if (proxyBlob && proxyBlob.size > 0) {
     console.log('✅ [OpenAI TTS] Via proxy (Netlify function):', (proxyBlob.size / 1024).toFixed(2), 'KB');
     return proxyBlob;
@@ -245,7 +253,7 @@ async function fetchOpenAITTS(text: string, lang: 'de' | 'ru'): Promise<Blob> {
 
   console.log('📡 [OpenAI TTS] Proxy unavailable, using direct API');
   try {
-    const blob = await fetchDirect(text, lang, apiKey);
+    const blob = await fetchDirect(textToUse, lang, apiKey);
     console.log('✅ [OpenAI TTS] Direct API:', (blob.size / 1024).toFixed(2), 'KB');
     return blob;
   } catch (error) {
@@ -261,10 +269,16 @@ export async function playTextWithOpenAITTS(
 ): Promise<void> {
   console.log('🔊 [TTS Engine: OpenAI] Starting playback for:', text.substring(0, 50));
   
+  const textNorm = typeof text === 'string' ? text.trim() : '';
+  if (!textNorm) {
+    console.warn('⚠️ [OpenAI TTS] Empty text, skipping');
+    return;
+  }
+
   try {
-    // Проверяем кэш
-    console.log('🔍 [Cache] Checking cache for:', text.substring(0, 30) + '...');
-    const cachedAudio = await getFromCache(text, lang);
+    // Проверяем кэш (по нормализованному тексту)
+    console.log('🔍 [Cache] Checking cache for:', textNorm.substring(0, 30) + (textNorm.length > 30 ? '...' : ''));
+    const cachedAudio = await getFromCache(textNorm, lang);
     if (cachedAudio) {
       console.log('✅ [TTS Engine: OpenAI] Using cached audio (from IndexedDB) - FREE!');
       await playAudioBlob(cachedAudio);
@@ -273,14 +287,17 @@ export async function playTextWithOpenAITTS(
     
     // Если нет в кэше, получаем от OpenAI
     console.log('📡 [TTS Engine: OpenAI] Not in cache, fetching from API (model: tts-1-hd, voice: nova)...');
-    const audioBlob = await fetchOpenAITTS(text, lang);
+    const audioBlob = await fetchOpenAITTS(textNorm, lang);
     
     // Кэшируем в фоне — не ждём, воспроизведение начинается сразу
-    saveToCache(text, lang, audioBlob).then(() => {
+    saveToCache(textNorm, lang, audioBlob).then(() => {
       console.log('✅ [TTS Engine: OpenAI] Audio cached for future use');
     }).catch(() => {});
     
     // Воспроизводим сразу после получения blob
+    if (!audioBlob || audioBlob.size === 0) {
+      throw new Error('OpenAI TTS: пустой ответ');
+    }
     console.log('▶️ [TTS Engine: OpenAI] Starting playback...');
     await playAudioBlob(audioBlob);
     console.log('✅ [TTS Engine: OpenAI] Playback completed successfully');

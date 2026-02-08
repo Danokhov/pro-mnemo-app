@@ -39,7 +39,7 @@ exports.handler = async (event) => {
     };
   }
 
-  const { text, lang = 'de' } = body;
+  let text = body.text;
   if (!text || typeof text !== 'string') {
     return {
       statusCode: 400,
@@ -47,6 +47,17 @@ exports.handler = async (event) => {
       body: JSON.stringify({ error: 'Missing or invalid "text"' }),
     };
   }
+  text = text.trim();
+  if (!text) {
+    return {
+      statusCode: 400,
+      headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ error: 'Text is empty after trim' }),
+    };
+  }
+  const lang = body.lang === 'ru' ? 'ru' : 'de';
+  const maxLen = 4096;
+  if (text.length > maxLen) text = text.slice(0, maxLen);
 
   try {
     const response = await fetch('https://api.openai.com/v1/audio/speech', {
@@ -59,7 +70,7 @@ exports.handler = async (event) => {
         model: 'tts-1-hd',
         input: text,
         voice: 'nova',
-        language: lang === 'de' ? 'de' : 'ru',
+        language: lang,
       }),
     });
 
