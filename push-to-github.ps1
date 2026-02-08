@@ -49,7 +49,7 @@ if ($LASTEXITCODE -ne 0) {
 git branch -M $branch
 # Подтянуть изменения с GitHub перед пушем (избегаем rejected push)
 Write-Host "Pulling from origin (rebase)..." -ForegroundColor Cyan
-$pullOut = git pull --rebase origin $branch 2>&1
+$pullResult = cmd /c "git pull --rebase origin $branch 2>&1"
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Pull failed or no remote yet. Pushing..." -ForegroundColor Yellow
 }
