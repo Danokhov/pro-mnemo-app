@@ -1583,7 +1583,7 @@ Die Lösung liegt näher, als man denkt.`,
     level: 'A1-A2',
     isNew: true,
     availableFrom: '2025-02-01',
-    videoUrl: 'https://kinescope.io/embed/placeholder',
+    videoUrl: 'https://kinescope.io/embed/n8XPvHAqaZh71RodrCKVXv',
     dialog: {
       title: 'Der teure Ausflug zu IKEA',
       text: `Am Samstag fährt eine Familie zu IKEA. Die Kinder sind 8 und 12 Jahre alt und brauchen neue Betten. Die alten Betten sind zu klein.
@@ -1622,7 +1622,8 @@ An der Kasse wird der Vater blass. Er sieht den Preis und schüttelt den Kopf: �
 
 Der Vater seufzt und bezahlt alles mit der Kreditkarte. „Na ja, was macht man nicht alles für die Familie. Am Wochenende muss ich jetzt alle Möbel aufbauen!" 😊`,
       translation: 'Полный перевод истории доступен в режиме изучения.',
-      audioUrl: '/placeholder.mp3'
+      imageUrl: '/Thema5_photo.png',
+      audioUrl: '/Thema5_audio.wav'
     },
     words: [
       { id: 'ausflug', de: 'der Ausflug', ru: 'поездка, экскурсия' },
@@ -1682,7 +1683,33 @@ Der Vater seufzt und bezahlt alles mit der Kreditkarte. „Na ja, was macht man 
       { id: 'schuetteln-kopf', de: 'Er schüttelt den Kopf.', ru: 'Он качает головой.' },
       { id: 'aufbauen-koennen', de: 'Kannst du das aufbauen?', ru: 'Ты можешь это собрать?' }
     ],
-    quiz: [],
+    quiz: [
+      {
+        question: "Warum fährt die Familie zu IKEA?",
+        options: ["Die Kinder brauchen neue Betten", "Sie brauchen eine neue Küche", "Sie wollen nur essen"],
+        correctAnswer: "Die Kinder brauchen neue Betten"
+      },
+      {
+        question: "Was gefällt den Kindern am besten?",
+        options: ["Ein Etagenbett", "Ein Schlafsofa", "Ein Bett wie ein Raumschiff"],
+        correctAnswer: "Ein Etagenbett"
+      },
+      {
+        question: "Auf welche Farbe einigen sich alle?",
+        options: ["Weiß", "Grau", "Rosa"],
+        correctAnswer: "Weiß"
+      },
+      {
+        question: "Was nehmen sie im IKEA-Restaurant?",
+        options: ["Hot Dogs, Tee und Saft", "Nur Kaffee", "Pizza"],
+        correctAnswer: "Hot Dogs, Tee und Saft"
+      },
+      {
+        question: "Wie reagiert der Vater an der Kasse?",
+        options: ["Er wird blass und schüttelt den Kopf", "Er freut sich", "Er lacht"],
+        correctAnswer: "Er wird blass und schüttelt den Kopf"
+      }
+    ],
     exercises: [
       { sentence_ru: 'Давай съездим на природу.', sentence: 'Lass uns einen ____ machen.', options: ['Ausflug', 'Ausfahrt', 'Ausgang', 'Urlaub'], explanation: 'Ausflug – поездка, вылазка. «Einen Ausflug machen» – устойчивое выражение.' },
       { sentence_ru: 'Экскурсии — это весело.', sentence: 'Die ____ machen Spaß.', options: ['Ausflüge', 'Ausflug', 'Reisen', 'Fahrten'], explanation: 'Ausflüge – множественное число от der Ausflug (поездки, экскурсии).' },
